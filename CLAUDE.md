@@ -16,9 +16,9 @@ ln -s /path/to/claude-skills/<skill-name> ~/.claude/skills/<skill-name>
 ### yt-transcript (`/transcript <youtube_url>`)
 Downloads YouTube subtitles via yt-dlp and outputs clean Markdown to `~/transcripts/{YYYY-MM}/`.
 
-- **Runtime:** Python ≥3.10, managed by `uv`
-- **Install deps:** `cd yt-transcript && uv sync`
-- **Run:** `cd yt-transcript && uv run python scripts/transcript.py "<url>"`
+- **Runtime:** Python ≥3.10, managed by `uv` (project root)
+- **Install deps:** `uv sync` (at repo root)
+- **Run:** `uv run python yt-transcript/scripts/transcript.py "<url>"`
 - **Entry point:** `yt-transcript/scripts/transcript.py` — single-file script, no package structure
 - **Subtitle priority:** manual zh → en, then auto-generated en → zh
 - **Phase 2 (planned):** `--translate` flag using Claude Haiku API for en→zh translation

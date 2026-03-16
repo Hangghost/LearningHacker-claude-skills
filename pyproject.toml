@@ -1,0 +1,6 @@
+[project]
+name = "claude-skills"
+version = "0.1.0"
+description = "A collection of custom Claude Code Skills"
+requires-python = ">=3.10"
+dependencies = ["yt-dlp", "anthropic"]
