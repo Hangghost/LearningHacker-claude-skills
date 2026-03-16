@@ -27,10 +27,22 @@ The user will provide a YouTube URL. Download the video's subtitles, clean them 
    # Basic transcript (no translation)
    cd /Users/chenhunglun/Documents/Procjects/LearningHacker-claude-skills && uv run python yt-transcript/scripts/transcript.py "<url>"
 
-   # With real-time English→Chinese translation (requires ANTHROPIC_API_KEY)
+   # With real-time English→Chinese translation (default: Anthropic claude-haiku-4-5)
    cd /Users/chenhunglun/Documents/Procjects/LearningHacker-claude-skills && uv run python yt-transcript/scripts/transcript.py "<url>" --translate
 
-   # Submit batch translation (cheaper, async)
+   # Use OpenAI for translation (requires OPENAI_API_KEY)
+   cd /Users/chenhunglun/Documents/Procjects/LearningHacker-claude-skills && uv run python yt-transcript/scripts/transcript.py "<url>" --translate --api openai
+
+   # Use Gemini for translation (requires GEMINI_API_KEY)
+   cd /Users/chenhunglun/Documents/Procjects/LearningHacker-claude-skills && uv run python yt-transcript/scripts/transcript.py "<url>" --translate --api gemini
+
+   # Use Grok for translation (requires XAI_API_KEY)
+   cd /Users/chenhunglun/Documents/Procjects/LearningHacker-claude-skills && uv run python yt-transcript/scripts/transcript.py "<url>" --translate --api grok
+
+   # Specify a particular model
+   cd /Users/chenhunglun/Documents/Procjects/LearningHacker-claude-skills && uv run python yt-transcript/scripts/transcript.py "<url>" --translate --api anthropic --model claude-sonnet-4-5-20250514
+
+   # Submit batch translation (Anthropic only, cheaper, async)
    cd /Users/chenhunglun/Documents/Procjects/LearningHacker-claude-skills && uv run python yt-transcript/scripts/transcript.py "<url>" --translate --batch
 
    # Fetch batch results

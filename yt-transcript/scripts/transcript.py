@@ -18,7 +18,19 @@ MANUAL_LANG_PRIORITY = ["zh-Hant", "zh-Hans", "zh", "en"]
 # to avoid low-quality machine translation; Chinese only if it's the source language
 AUTO_LANG_PRIORITY = ["en", "zh-Hant", "zh-Hans", "zh"]
 
-TRANSLATE_MODEL = "claude-haiku-4-5-20251001"
+DEFAULT_API = "anthropic"
+DEFAULT_MODEL = {
+    "anthropic": "claude-haiku-4-5-20251001",
+    "openai": "gpt-4o-mini",
+    "gemini": "gemini-2.0-flash",
+    "grok": "grok-3-mini-fast",
+}
+# OpenAI-compatible providers: (base_url, env_var for API key)
+OPENAI_COMPAT = {
+    "openai": (None, "OPENAI_API_KEY"),
+    "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/", "GEMINI_API_KEY"),
+    "grok": ("https://api.x.ai/v1", "XAI_API_KEY"),
+}
 BATCH_SIZE = 10
 
 TRANSLATE_PROMPT = """\
@@ -305,48 +317,67 @@ def save_transcript(content: str, info: dict) -> Path:
 # Translation (Phase 2)
 # ---------------------------------------------------------------------------
 
-def _get_anthropic_client():
-    """Create an Anthropic client (requires ANTHROPIC_API_KEY env var)."""
-    import anthropic
-    return anthropic.Anthropic()
+def _call_llm(api: str, model: str, prompt: str) -> str:
+    """Call an LLM API and return the text response."""
+    if api == "anthropic":
+        import anthropic
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model=model,
+            max_tokens=8192,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text.strip()
+    elif api in OPENAI_COMPAT:
+        import os
+        import openai
+        base_url, env_var = OPENAI_COMPAT[api]
+        api_key = os.environ.get(env_var)
+        if not api_key:
+            raise RuntimeError(f"Missing {env_var} environment variable for --api {api}")
+        client = openai.OpenAI(api_key=api_key, base_url=base_url)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content.strip()
+    else:
+        raise RuntimeError(f"Unsupported API: {api}")
 
 
-def translate_paragraphs(paragraphs: list[dict]) -> list[dict]:
-    """Translate paragraphs using Claude Haiku (real-time).
+def _parse_translation_response(raw: str) -> list[str]:
+    """Extract JSON array from LLM response text."""
+    # Strip markdown code fences if present
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw)
+        raw = raw.strip()
+    # Find the outermost JSON array
+    start = raw.find("[")
+    end = raw.rfind("]")
+    if start != -1 and end != -1 and end > start:
+        return json.loads(raw[start:end + 1])
+    raise RuntimeError(f"Failed to parse translation response: {raw[:200]}")
+
+
+def translate_paragraphs(paragraphs: list[dict], api: str, model: str) -> list[dict]:
+    """Translate paragraphs using the specified API and model.
 
     Sends paragraphs in batches of BATCH_SIZE, returns paragraphs with
     'translation' field added.
     """
-    client = _get_anthropic_client()
     result = []
 
     batches = [paragraphs[i:i + BATCH_SIZE] for i in range(0, len(paragraphs), BATCH_SIZE)]
     total = len(batches)
 
     for idx, batch in enumerate(batches, 1):
-        print(f"Translating batch {idx}/{total}...", file=sys.stderr)
+        print(f"Translating batch {idx}/{total} ({api}/{model})...", file=sys.stderr)
         texts = [p["text"] for p in batch]
         prompt = TRANSLATE_PROMPT + json.dumps(texts, ensure_ascii=False)
 
-        response = client.messages.create(
-            model=TRANSLATE_MODEL,
-            max_tokens=8192,
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        raw = response.content[0].text.strip()
-        # Strip markdown code fences if present
-        if raw.startswith("```"):
-            raw = re.sub(r"^```[a-z]*\n?", "", raw)
-            raw = re.sub(r"\n?```$", "", raw)
-            raw = raw.strip()
-        # Find the outermost JSON array
-        start = raw.find("[")
-        end = raw.rfind("]")
-        if start != -1 and end != -1 and end > start:
-            translations = json.loads(raw[start:end + 1])
-        else:
-            raise RuntimeError(f"Failed to parse translation response: {raw[:200]}")
+        raw = _call_llm(api, model, prompt)
+        translations = _parse_translation_response(raw)
 
         if len(translations) != len(batch):
             print(
@@ -363,9 +394,10 @@ def translate_paragraphs(paragraphs: list[dict]) -> list[dict]:
     return result
 
 
-def submit_batch_translation(paragraphs: list[dict], info: dict) -> str:
-    """Submit a Message Batch for translation, return batch_id."""
-    client = _get_anthropic_client()
+def submit_batch_translation(paragraphs: list[dict], info: dict, model: str) -> str:
+    """Submit a Message Batch for translation (Anthropic only), return batch_id."""
+    import anthropic
+    client = anthropic.Anthropic()
 
     batches = [paragraphs[i:i + BATCH_SIZE] for i in range(0, len(paragraphs), BATCH_SIZE)]
     requests = []
@@ -376,7 +408,7 @@ def submit_batch_translation(paragraphs: list[dict], info: dict) -> str:
         requests.append({
             "custom_id": f"batch-{idx}",
             "params": {
-                "model": TRANSLATE_MODEL,
+                "model": model,
                 "max_tokens": 4096,
                 "messages": [{"role": "user", "content": prompt}],
             },
@@ -428,15 +460,9 @@ def fetch_batch_result(batch_id: str) -> None:
         custom_id = result.custom_id
         if result.result.type == "succeeded":
             raw = result.result.message.content[0].text.strip()
-            if raw.startswith("```"):
-                raw = re.sub(r"^```[a-z]*\n?", "", raw)
-                raw = re.sub(r"\n?```$", "", raw)
-                raw = raw.strip()
-            start = raw.find("[")
-            end = raw.rfind("]")
-            if start != -1 and end != -1 and end > start:
-                translation_map[custom_id] = json.loads(raw[start:end + 1])
-            else:
+            try:
+                translation_map[custom_id] = _parse_translation_response(raw)
+            except RuntimeError:
                 print(f"Warning: could not parse response for {custom_id}", file=sys.stderr)
         else:
             print(f"Warning: {custom_id} failed: {result.result.type}", file=sys.stderr)
@@ -464,7 +490,18 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Download YouTube transcripts")
     parser.add_argument("url", nargs="?", help="YouTube video URL")
     parser.add_argument("--translate", action="store_true", help="Translate English transcript to Chinese")
-    parser.add_argument("--batch", action="store_true", help="Use Batch API for translation (with --translate)")
+    parser.add_argument(
+        "--api",
+        choices=list(DEFAULT_MODEL.keys()),
+        default=DEFAULT_API,
+        help=f"API provider for translation (default: {DEFAULT_API})",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Model name for translation (default depends on --api)",
+    )
+    parser.add_argument("--batch", action="store_true", help="Use Anthropic Batch API for translation (with --translate)")
     parser.add_argument("--fetch", metavar="BATCH_ID", help="Fetch results of a previous batch translation")
     return parser.parse_args()
 
@@ -505,13 +542,18 @@ def main():
             paragraphs = merge_segments(segments)
 
         if args.translate:
+            api = args.api
+            model = args.model or DEFAULT_MODEL[api]
             if args.batch:
-                batch_id = submit_batch_translation(paragraphs, info)
+                if api != "anthropic":
+                    print("Error: --batch is only supported with --api anthropic", file=sys.stderr)
+                    sys.exit(1)
+                batch_id = submit_batch_translation(paragraphs, info, model)
                 print(f"Batch submitted: {batch_id}", file=sys.stderr)
                 print(f"Run with --fetch {batch_id} to retrieve results.", file=sys.stderr)
                 return
             else:
-                paragraphs = translate_paragraphs(paragraphs)
+                paragraphs = translate_paragraphs(paragraphs, api, model)
 
         content = format_markdown(info, paragraphs)
         out_path = save_transcript(content, info)
