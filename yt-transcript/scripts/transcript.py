@@ -1,5 +1,7 @@
 """Download YouTube subtitles and format them into clean Markdown."""
 
+import argparse
+import json
 import re
 import sys
 import tempfile
@@ -15,6 +17,19 @@ MANUAL_LANG_PRIORITY = ["zh-Hant", "zh-Hans", "zh", "en"]
 # For auto-generated: prefer the original language (usually en for English videos)
 # to avoid low-quality machine translation; Chinese only if it's the source language
 AUTO_LANG_PRIORITY = ["en", "zh-Hant", "zh-Hans", "zh"]
+
+TRANSLATE_MODEL = "claude-haiku-4-5-20251001"
+BATCH_SIZE = 10
+
+TRANSLATE_PROMPT = """\
+You are a professional translator. Translate each English paragraph into Traditional Chinese (繁體中文).
+Return a JSON array of strings, one translation per input paragraph, in the same order.
+Do NOT include the original English. Only return the JSON array, no other text.
+
+Paragraphs to translate:
+"""
+
+PENDING_DIR = Path.home() / "transcripts" / ".pending"
 
 
 def extract_info(url: str) -> dict:
@@ -64,7 +79,7 @@ def download_subtitles(url: str, tmp_dir: str, raw_info: dict) -> Path:
     if chosen_lang is None:
         raise RuntimeError(
             "No subtitles found for this video (tried manual and auto-generated "
-            f"in languages: {', '.join(LANGUAGE_PRIORITY)})"
+            f"in languages: {', '.join(MANUAL_LANG_PRIORITY + AUTO_LANG_PRIORITY)})"
         )
 
     print(f"Found {'auto' if use_auto else 'manual'} subtitles: {chosen_lang}", file=sys.stderr)
@@ -221,7 +236,10 @@ def format_upload_date(date_str: str) -> str:
 
 
 def format_markdown(info: dict, paragraphs: list[dict]) -> str:
-    """Build the final Markdown document."""
+    """Build the final Markdown document.
+
+    If paragraphs have a 'translation' field, output bilingual format.
+    """
     lines = [
         f"# {info['title']}",
         "",
@@ -240,6 +258,9 @@ def format_markdown(info: dict, paragraphs: list[dict]) -> str:
         ts = format_timestamp(para["start"])
         lines.append(f"**{ts}** {para['text']}")
         lines.append("")
+        if "translation" in para:
+            lines.append(f"> {para['translation']}")
+            lines.append("")
 
     return "\n".join(lines)
 
@@ -280,21 +301,198 @@ def save_transcript(content: str, info: dict) -> Path:
     return out_path
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: transcript.py <youtube_url>", file=sys.stderr)
+# ---------------------------------------------------------------------------
+# Translation (Phase 2)
+# ---------------------------------------------------------------------------
+
+def _get_anthropic_client():
+    """Create an Anthropic client (requires ANTHROPIC_API_KEY env var)."""
+    import anthropic
+    return anthropic.Anthropic()
+
+
+def translate_paragraphs(paragraphs: list[dict]) -> list[dict]:
+    """Translate paragraphs using Claude Haiku (real-time).
+
+    Sends paragraphs in batches of BATCH_SIZE, returns paragraphs with
+    'translation' field added.
+    """
+    client = _get_anthropic_client()
+    result = []
+
+    batches = [paragraphs[i:i + BATCH_SIZE] for i in range(0, len(paragraphs), BATCH_SIZE)]
+    total = len(batches)
+
+    for idx, batch in enumerate(batches, 1):
+        print(f"Translating batch {idx}/{total}...", file=sys.stderr)
+        texts = [p["text"] for p in batch]
+        prompt = TRANSLATE_PROMPT + json.dumps(texts, ensure_ascii=False)
+
+        response = client.messages.create(
+            model=TRANSLATE_MODEL,
+            max_tokens=8192,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        raw = response.content[0].text.strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-z]*\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw)
+            raw = raw.strip()
+        # Find the outermost JSON array
+        start = raw.find("[")
+        end = raw.rfind("]")
+        if start != -1 and end != -1 and end > start:
+            translations = json.loads(raw[start:end + 1])
+        else:
+            raise RuntimeError(f"Failed to parse translation response: {raw[:200]}")
+
+        if len(translations) != len(batch):
+            print(
+                f"Warning: expected {len(batch)} translations, got {len(translations)}",
+                file=sys.stderr,
+            )
+
+        for i, para in enumerate(batch):
+            enriched = dict(para)
+            if i < len(translations):
+                enriched["translation"] = translations[i]
+            result.append(enriched)
+
+    return result
+
+
+def submit_batch_translation(paragraphs: list[dict], info: dict) -> str:
+    """Submit a Message Batch for translation, return batch_id."""
+    client = _get_anthropic_client()
+
+    batches = [paragraphs[i:i + BATCH_SIZE] for i in range(0, len(paragraphs), BATCH_SIZE)]
+    requests = []
+
+    for idx, batch in enumerate(batches):
+        texts = [p["text"] for p in batch]
+        prompt = TRANSLATE_PROMPT + json.dumps(texts, ensure_ascii=False)
+        requests.append({
+            "custom_id": f"batch-{idx}",
+            "params": {
+                "model": TRANSLATE_MODEL,
+                "max_tokens": 4096,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+        })
+
+    print(f"Submitting batch with {len(requests)} request(s)...", file=sys.stderr)
+    batch_resp = client.messages.batches.create(requests=requests)
+    batch_id = batch_resp.id
+
+    # Save pending data for later retrieval
+    PENDING_DIR.mkdir(parents=True, exist_ok=True)
+    pending_path = PENDING_DIR / f"{batch_id}.json"
+    pending_data = {
+        "info": info,
+        "paragraphs": paragraphs,
+        "batch_count": len(batches),
+    }
+    pending_path.write_text(json.dumps(pending_data, ensure_ascii=False), encoding="utf-8")
+
+    return batch_id
+
+
+def fetch_batch_result(batch_id: str) -> None:
+    """Fetch batch results, assemble translated Markdown, and save."""
+    client = _get_anthropic_client()
+
+    # Load pending data
+    pending_path = PENDING_DIR / f"{batch_id}.json"
+    if not pending_path.exists():
+        raise RuntimeError(f"No pending data found for batch {batch_id}")
+
+    pending_data = json.loads(pending_path.read_text(encoding="utf-8"))
+    info = pending_data["info"]
+    paragraphs = pending_data["paragraphs"]
+
+    # Check batch status
+    batch_status = client.messages.batches.retrieve(batch_id)
+    if batch_status.processing_status != "ended":
+        print(
+            f"Batch is still processing (status: {batch_status.processing_status}). "
+            "Please try again later.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    url = sys.argv[1]
+    # Collect translations keyed by custom_id
+    translation_map: dict[str, list[str]] = {}
+    for result in client.messages.batches.results(batch_id):
+        custom_id = result.custom_id
+        if result.result.type == "succeeded":
+            raw = result.result.message.content[0].text.strip()
+            if raw.startswith("```"):
+                raw = re.sub(r"^```[a-z]*\n?", "", raw)
+                raw = re.sub(r"\n?```$", "", raw)
+                raw = raw.strip()
+            start = raw.find("[")
+            end = raw.rfind("]")
+            if start != -1 and end != -1 and end > start:
+                translation_map[custom_id] = json.loads(raw[start:end + 1])
+            else:
+                print(f"Warning: could not parse response for {custom_id}", file=sys.stderr)
+        else:
+            print(f"Warning: {custom_id} failed: {result.result.type}", file=sys.stderr)
+
+    # Apply translations to paragraphs
+    batches = [paragraphs[i:i + BATCH_SIZE] for i in range(0, len(paragraphs), BATCH_SIZE)]
+    enriched = []
+    for idx, batch in enumerate(batches):
+        translations = translation_map.get(f"batch-{idx}", [])
+        for i, para in enumerate(batch):
+            p = dict(para)
+            if i < len(translations):
+                p["translation"] = translations[i]
+            enriched.append(p)
+
+    content = format_markdown(info, enriched)
+    out_path = save_transcript(content, info)
+    print(str(out_path))
+
+    # Clean up pending file
+    pending_path.unlink(missing_ok=True)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Download YouTube transcripts")
+    parser.add_argument("url", nargs="?", help="YouTube video URL")
+    parser.add_argument("--translate", action="store_true", help="Translate English transcript to Chinese")
+    parser.add_argument("--batch", action="store_true", help="Use Batch API for translation (with --translate)")
+    parser.add_argument("--fetch", metavar="BATCH_ID", help="Fetch results of a previous batch translation")
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    # --fetch mode: retrieve batch results
+    if args.fetch:
+        try:
+            fetch_batch_result(args.fetch)
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        return
+
+    if not args.url:
+        print("Error: URL is required (unless using --fetch)", file=sys.stderr)
+        sys.exit(1)
 
     try:
         print("Fetching video info...", file=sys.stderr)
-        raw_info = extract_info(url)
-        info = get_video_info(raw_info, url)
+        raw_info = extract_info(args.url)
+        info = get_video_info(raw_info, args.url)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             print("Downloading subtitles...", file=sys.stderr)
-            vtt_path = download_subtitles(url, tmp_dir, raw_info)
+            vtt_path = download_subtitles(args.url, tmp_dir, raw_info)
 
             print("Parsing subtitles...", file=sys.stderr)
             segments = parse_vtt(vtt_path)
@@ -305,6 +503,15 @@ def main():
 
             print("Merging segments...", file=sys.stderr)
             paragraphs = merge_segments(segments)
+
+        if args.translate:
+            if args.batch:
+                batch_id = submit_batch_translation(paragraphs, info)
+                print(f"Batch submitted: {batch_id}", file=sys.stderr)
+                print(f"Run with --fetch {batch_id} to retrieve results.", file=sys.stderr)
+                return
+            else:
+                paragraphs = translate_paragraphs(paragraphs)
 
         content = format_markdown(info, paragraphs)
         out_path = save_transcript(content, info)
