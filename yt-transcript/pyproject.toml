@@ -1,0 +1,6 @@
+[project]
+name = "yt-transcript"
+version = "0.1.0"
+description = "Download and format YouTube transcripts into clean Markdown"
+requires-python = ">=3.10"
+dependencies = ["yt-dlp"]
