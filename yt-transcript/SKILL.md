@@ -1,5 +1,6 @@
 ---
 name: transcript
+version: 1.2.0
 description: >
   Download and format YouTube video transcripts into clean Markdown.
   Use when user invokes /transcript with a YouTube URL.

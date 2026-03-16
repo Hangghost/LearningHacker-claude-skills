@@ -21,7 +21,20 @@ Downloads YouTube subtitles via yt-dlp and outputs clean Markdown to `~/transcri
 - **Run:** `uv run python yt-transcript/scripts/transcript.py "<url>"`
 - **Entry point:** `yt-transcript/scripts/transcript.py` — single-file script, no package structure
 - **Subtitle priority:** manual zh → en, then auto-generated en → zh
-- **Phase 2 (planned):** `--translate` flag using Claude Haiku API for en→zh translation
+- **Phase 2 (done):** `--translate` 支援多 LLM API（Anthropic/OpenAI/Gemini/Grok）
+
+### release (`/release <skill-name> [patch|minor|major]`)
+Release workflow: bump version in SKILL.md, update CHANGELOG.md, commit, and create git tag.
+
+- No external dependencies — pure git + file editing
+- Tag format: `<skill-name>/v<version>`
+- Does NOT auto-push — user decides when to push
+
+## Versioning
+
+- Each skill has its own independent version number (semver), stored in its `SKILL.md` frontmatter (`version:` field)
+- All changes are recorded in a single root `CHANGELOG.md`, organized by date then skill
+- Use `/release` to perform a release
 
 ## Conventions
 
