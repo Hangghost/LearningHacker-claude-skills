@@ -43,7 +43,9 @@ Transform interview/podcast transcripts into structured research notes for knowl
    - `{source-title}` is derived from the transcript filename (strip date prefix and extension)
    - Create the directory if it does not exist
 
-5. **Report** the saved file path to the user and offer to dive deeper into any specific viewpoint or suggest additional angles.
+5. **Translate if source is English**: If the transcript language is English, produce a Traditional Chinese translation and save it as `{source-title}-distill_ZH.md` in the same directory. Follow the translation rules in the extraction framework's "Translation Rules" section. If the transcript is already in Traditional Chinese, skip this step.
+
+6. **Report** the saved file path(s) to the user and offer to dive deeper into any specific viewpoint or suggest additional angles.
 
 ## Constraints
 
