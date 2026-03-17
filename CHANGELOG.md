@@ -5,6 +5,10 @@ Format: each entry is grouped by date, then by skill name and version.
 
 ## 2026-03-17
 
+### distill v1.0.0
+- 新增 distill skill：從訪談／Podcast 逐字稿萃取結構化寫作素材
+- 英文逐字稿自動產出繁體中文翻譯版
+
 ### yt-transcript v1.2.0
 - 支援多 LLM 翻譯 API（OpenAI、Gemini、Grok），可透過 `--api` 參數切換
 - 支援指定模型 `--model`

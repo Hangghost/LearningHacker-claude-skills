@@ -1,5 +1,6 @@
 ---
 name: distill
+version: 1.0.0
 description: >
   Extract structured knowledge from interview/podcast transcripts for blog writing.
   Decomposes conversations into reusable writing materials: viewpoints with reasoning chains,
