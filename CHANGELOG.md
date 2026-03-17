@@ -5,6 +5,10 @@ Format: each entry is grouped by date, then by skill name and version.
 
 ## 2026-03-17
 
+### yt-transcript v1.3.0
+- 翻譯模式輸出中英分檔，並修正 VTT HTML 實體解碼
+- 重構目錄結構，移至 skills/ 目錄統一管理
+
 ### release v1.0.0
 - 初始版本：自動化 skill 發版流程（版本號更新、CHANGELOG、commit、tag）
 
