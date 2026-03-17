@@ -5,6 +5,9 @@ Format: each entry is grouped by date, then by skill name and version.
 
 ## 2026-03-17
 
+### release v1.0.0
+- 初始版本：自動化 skill 發版流程（版本號更新、CHANGELOG、commit、tag）
+
 ### distill v1.0.0
 - 新增 distill skill：從訪談／Podcast 逐字稿萃取結構化寫作素材
 - 英文逐字稿自動產出繁體中文翻譯版
