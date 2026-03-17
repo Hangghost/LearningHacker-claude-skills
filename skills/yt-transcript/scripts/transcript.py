@@ -1,6 +1,7 @@
 """Download YouTube subtitles and format them into clean Markdown."""
 
 import argparse
+import html
 import json
 import re
 import sys
@@ -120,7 +121,8 @@ def download_subtitles(url: str, tmp_dir: str, raw_info: dict) -> Path:
 
 def _strip_vtt_tags(text: str) -> str:
     """Remove VTT inline tags like <c>, <00:01:02.345>, alignment, etc."""
-    return re.sub(r"<[^>]+>", "", text).strip()
+    text = re.sub(r"<[^>]+>", "", text).strip()
+    return html.unescape(text)
 
 
 def parse_vtt(file_path: Path) -> list[dict]:
@@ -247,10 +249,11 @@ def format_upload_date(date_str: str) -> str:
     return date_str
 
 
-def format_markdown(info: dict, paragraphs: list[dict]) -> str:
+def format_markdown(info: dict, paragraphs: list[dict], lang: str = "bilingual") -> str:
     """Build the final Markdown document.
 
-    If paragraphs have a 'translation' field, output bilingual format.
+    lang: "en" = English only, "zh" = Chinese only (requires 'translation' field),
+          "bilingual" = English paragraphs with Chinese blockquotes (legacy format).
     """
     lines = [
         f"# {info['title']}",
@@ -268,11 +271,17 @@ def format_markdown(info: dict, paragraphs: list[dict]) -> str:
 
     for para in paragraphs:
         ts = format_timestamp(para["start"])
-        lines.append(f"**{ts}** {para['text']}")
+        if lang == "zh":
+            text = para.get("translation", para["text"])
+            lines.append(f"**{ts}** {text}")
+        elif lang == "en":
+            lines.append(f"**{ts}** {para['text']}")
+        else:  # bilingual
+            lines.append(f"**{ts}** {para['text']}")
+            if "translation" in para:
+                lines.append("")
+                lines.append(f"> {para['translation']}")
         lines.append("")
-        if "translation" in para:
-            lines.append(f"> {para['translation']}")
-            lines.append("")
 
     return "\n".join(lines)
 
@@ -293,8 +302,8 @@ def sanitize_filename(name: str) -> str:
     return name
 
 
-def save_transcript(content: str, info: dict) -> Path:
-    """Save Markdown to ~/transcripts/{YYYY-MM}/{channel}_{title}.md."""
+def save_transcript(content: str, info: dict, suffix: str = "") -> Path:
+    """Save Markdown to ~/transcripts/{YYYY-MM}/{channel}_{title}{suffix}.md."""
     date_str = info.get("upload_date", "")
     if len(date_str) >= 6:
         folder_name = f"{date_str[:4]}-{date_str[4:6]}"
@@ -303,7 +312,7 @@ def save_transcript(content: str, info: dict) -> Path:
 
     channel = sanitize_filename(info["channel"])
     title = sanitize_filename(info["title"])
-    filename = f"{channel}_{title}.md"
+    filename = f"{channel}_{title}{suffix}.md"
 
     out_dir = Path.home() / "transcripts" / folder_name
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -478,9 +487,10 @@ def fetch_batch_result(batch_id: str) -> None:
                 p["translation"] = translations[i]
             enriched.append(p)
 
-    content = format_markdown(info, enriched)
-    out_path = save_transcript(content, info)
-    print(str(out_path))
+    zh_path = save_transcript(format_markdown(info, enriched, lang="zh"), info, suffix="_zh")
+    en_path = save_transcript(format_markdown(info, enriched, lang="en"), info, suffix="_en")
+    print(str(zh_path))
+    print(str(en_path))
 
     # Clean up pending file
     pending_path.unlink(missing_ok=True)
@@ -555,9 +565,13 @@ def main():
             else:
                 paragraphs = translate_paragraphs(paragraphs, api, model)
 
-        content = format_markdown(info, paragraphs)
-        out_path = save_transcript(content, info)
-        print(str(out_path))
+            zh_path = save_transcript(format_markdown(info, paragraphs, lang="zh"), info, suffix="_zh")
+            en_path = save_transcript(format_markdown(info, paragraphs, lang="en"), info, suffix="_en")
+            print(str(zh_path))
+            print(str(en_path))
+        else:
+            out_path = save_transcript(format_markdown(info, paragraphs), info)
+            print(str(out_path))
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
