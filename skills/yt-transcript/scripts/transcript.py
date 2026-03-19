@@ -42,7 +42,8 @@ Do NOT include the original English. Only return the JSON array, no other text.
 Paragraphs to translate:
 """
 
-PENDING_DIR = Path.home() / "transcripts" / ".pending"
+DEFAULT_OUTPUT_DIR = Path.home() / "Documents" / "Procjects" / "00_work_space" / "brain" / "transcripts"
+PENDING_DIR = DEFAULT_OUTPUT_DIR / ".pending"
 
 
 def extract_info(url: str) -> dict:
@@ -302,8 +303,8 @@ def sanitize_filename(name: str) -> str:
     return name
 
 
-def save_transcript(content: str, info: dict, suffix: str = "") -> Path:
-    """Save Markdown to ~/transcripts/{YYYY-MM}/{channel}_{title}{suffix}.md."""
+def save_transcript(content: str, info: dict, suffix: str = "", output_dir: Path | None = None) -> Path:
+    """Save Markdown to {output_dir}/{YYYY-MM}/{channel}_{title}{suffix}.md."""
     date_str = info.get("upload_date", "")
     if len(date_str) >= 6:
         folder_name = f"{date_str[:4]}-{date_str[4:6]}"
@@ -314,7 +315,8 @@ def save_transcript(content: str, info: dict, suffix: str = "") -> Path:
     title = sanitize_filename(info["title"])
     filename = f"{channel}_{title}{suffix}.md"
 
-    out_dir = Path.home() / "transcripts" / folder_name
+    base = output_dir or DEFAULT_OUTPUT_DIR
+    out_dir = base / folder_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     out_path = out_dir / filename
@@ -487,8 +489,8 @@ def fetch_batch_result(batch_id: str) -> None:
                 p["translation"] = translations[i]
             enriched.append(p)
 
-    zh_path = save_transcript(format_markdown(info, enriched, lang="zh"), info, suffix="_zh")
-    en_path = save_transcript(format_markdown(info, enriched, lang="en"), info, suffix="_en")
+    zh_path = save_transcript(format_markdown(info, enriched, lang="zh"), info, suffix="_zh", output_dir=None)
+    en_path = save_transcript(format_markdown(info, enriched, lang="en"), info, suffix="_en", output_dir=None)
     print(str(zh_path))
     print(str(en_path))
 
@@ -513,6 +515,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--batch", action="store_true", help="Use Anthropic Batch API for translation (with --translate)")
     parser.add_argument("--fetch", metavar="BATCH_ID", help="Fetch results of a previous batch translation")
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help=f"Output base directory (default: {DEFAULT_OUTPUT_DIR})",
+    )
     return parser.parse_args()
 
 
@@ -531,6 +538,8 @@ def main():
     if not args.url:
         print("Error: URL is required (unless using --fetch)", file=sys.stderr)
         sys.exit(1)
+
+    output_dir = Path(args.output_dir) if args.output_dir else DEFAULT_OUTPUT_DIR
 
     try:
         print("Fetching video info...", file=sys.stderr)
@@ -565,12 +574,12 @@ def main():
             else:
                 paragraphs = translate_paragraphs(paragraphs, api, model)
 
-            zh_path = save_transcript(format_markdown(info, paragraphs, lang="zh"), info, suffix="_zh")
-            en_path = save_transcript(format_markdown(info, paragraphs, lang="en"), info, suffix="_en")
+            zh_path = save_transcript(format_markdown(info, paragraphs, lang="zh"), info, suffix="_zh", output_dir=output_dir)
+            en_path = save_transcript(format_markdown(info, paragraphs, lang="en"), info, suffix="_en", output_dir=output_dir)
             print(str(zh_path))
             print(str(en_path))
         else:
-            out_path = save_transcript(format_markdown(info, paragraphs), info)
+            out_path = save_transcript(format_markdown(info, paragraphs), info, output_dir=output_dir)
             print(str(out_path))
 
     except Exception as e:
