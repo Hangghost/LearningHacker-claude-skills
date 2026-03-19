@@ -5,6 +5,9 @@ Format: each entry is grouped by date, then by skill name and version.
 
 ## 2026-03-19
 
+### feature-docs v1.0.0
+- 初始版本：分支完成時自動產生技術文件或進度日誌，依變更規模自動判斷文件深度
+
 ### feature-update v1.0.0
 - 初始版本：提交變更並自動在 Jira 留言記錄開發進度（commit SHA + 變更摘要）
 
