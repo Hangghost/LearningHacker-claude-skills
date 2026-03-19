@@ -5,6 +5,9 @@ Format: each entry is grouped by date, then by skill name and version.
 
 ## 2026-03-19
 
+### feature-update v1.0.0
+- 初始版本：提交變更並自動在 Jira 留言記錄開發進度（commit SHA + 變更摘要）
+
 ### feature-start v1.0.0
 - 初始版本：從 Jira 票號啟動開發，自動建立分支並將討論計畫寫入 Jira 描述
 
