@@ -5,6 +5,9 @@ Format: each entry is grouped by date, then by skill name and version.
 
 ## 2026-03-19
 
+### feature-start v1.0.0
+- 初始版本：從 Jira 票號啟動開發，自動建立分支並將討論計畫寫入 Jira 描述
+
 ### yt-transcript v1.4.0
 - 新增 `--output-dir` CLI 參數，支援自訂輸出路徑
 - 新增 AskUserQuestion 設置選項，使用者可選擇預設或自訂輸出路徑
