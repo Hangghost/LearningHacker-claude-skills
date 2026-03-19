@@ -1,6 +1,6 @@
 ---
 name: web-clip
-version: 0.1.0
+version: 1.0.0
 description: >
   Clip web articles into Markdown + images for blog reference.
   Use when user invokes /clip with a URL.
