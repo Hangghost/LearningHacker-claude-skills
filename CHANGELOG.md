@@ -5,6 +5,11 @@ Format: each entry is grouped by date, then by skill name and version.
 
 ## 2026-03-19
 
+### distill v1.1.0
+- 新增 AskUserQuestion 設置選項，使用者可選擇預設或自訂輸出路徑
+- 預設輸出路徑改為 `~/Documents/Procjects/00_work_space/brain/distills`
+- 結果中強制顯示完整輸出路徑
+
 ### release v1.1.0
 - 新增未釋出 commits 列表，發版前可確認變更範圍
 - 支援從 commits 自動產生 release notes

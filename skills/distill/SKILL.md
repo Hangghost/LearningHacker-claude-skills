@@ -1,6 +1,6 @@
 ---
 name: distill
-version: 1.0.0
+version: 1.1.0
 description: >
   Extract structured knowledge from interview/podcast transcripts for blog writing.
   Decomposes conversations into reusable writing materials: viewpoints with reasoning chains,
@@ -27,9 +27,16 @@ Transform interview/podcast transcripts into structured research notes for knowl
 
 1. **Read the transcript file** provided by the user.
 
-2. **Read the extraction framework**: Load `references/extraction-framework.md` from this skill's directory for the full analysis instructions and output format.
+2. **Ask output settings:** Use the `AskUserQuestion` tool to ask the user:
+   - Question: "輸出路徑設定？"
+   - Option 1: "預設路徑 (Recommended)" — description: `~/Documents/Procjects/00_work_space/brain/distills`
+   - Option 2: "自訂路徑" — description: "輸入自訂的輸出資料夾路徑"
 
-3. **Execute the 6-step extraction** following the framework:
+   If the user selects "自訂路徑", use their provided path as the output base directory.
+
+3. **Read the extraction framework**: Load `references/extraction-framework.md` from this skill's directory for the full analysis instructions and output format.
+
+4. **Execute the 6-step extraction** following the framework:
    - Step 1: Speaker identification & context
    - Step 2: Viewpoint extraction with reasoning chains (core output)
    - Step 3: Quotable quotes collection
@@ -39,14 +46,15 @@ Transform interview/podcast transcripts into structured research notes for knowl
 
    If `--focus` is specified, prioritize viewpoints and reasoning related to that topic. Still complete all 6 steps but weight extraction toward the focus area.
 
-4. **Save the output** to `~/distills/{YYYY-MM}/{source-title}-distill.md`, where:
+5. **Save the output** to `{output_base}/distills/{YYYY-MM}/{source-title}-distill.md`, where:
+   - `{output_base}` is `~/Documents/Procjects/00_work_space/brain` (default) or user's custom path
    - `{YYYY-MM}` is the current year-month
    - `{source-title}` is derived from the transcript filename (strip date prefix and extension)
    - Create the directory if it does not exist
 
-5. **Translate if source is English**: If the transcript language is English, produce a Traditional Chinese translation and save it as `{source-title}-distill_ZH.md` in the same directory. Follow the translation rules in the extraction framework's "Translation Rules" section. If the transcript is already in Traditional Chinese, skip this step.
+6. **Translate if source is English**: If the transcript language is English, produce a Traditional Chinese translation and save it as `{source-title}-distill_ZH.md` in the same directory. Follow the translation rules in the extraction framework's "Translation Rules" section. If the transcript is already in Traditional Chinese, skip this step.
 
-6. **Report** the saved file path(s) to the user and offer to dive deeper into any specific viewpoint or suggest additional angles.
+7. **Report** the saved file path(s) to the user — **always show the full absolute path** — and offer to dive deeper into any specific viewpoint or suggest additional angles.
 
 ## Constraints
 
