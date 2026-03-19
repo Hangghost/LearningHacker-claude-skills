@@ -5,6 +5,9 @@ Format: each entry is grouped by date, then by skill name and version.
 
 ## 2026-03-19
 
+### feature-done v1.0.0
+- 初始版本：功能完成工作流 — 品質檢查、文件產生、合併至 develop、清理分支、關閉 Jira 票號
+
 ### feature-docs v1.0.0
 - 初始版本：分支完成時自動產生技術文件或進度日誌，依變更規模自動判斷文件深度
 
