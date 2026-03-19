@@ -5,6 +5,11 @@ Format: each entry is grouped by date, then by skill name and version.
 
 ## 2026-03-19
 
+### git-merge-cleanup v1.0.0
+- 初始版本：Git 分支清理與衝突解決，支援 GitHub/GitLab 雙平台自動偵測
+- Cleanup 模式：合併後清理分支（local + remote）
+- Rebase 模式：AI 輔助衝突解決
+
 ### feature-done v1.0.0
 - 初始版本：功能完成工作流 — 品質檢查、文件產生、合併至 develop、清理分支、關閉 Jira 票號
 
