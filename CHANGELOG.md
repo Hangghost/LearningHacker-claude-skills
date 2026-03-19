@@ -3,6 +3,16 @@
 All notable changes to skills in this repository will be documented in this file.
 Format: each entry is grouped by date, then by skill name and version.
 
+## 2026-03-19
+
+### release v1.1.0
+- 新增未釋出 commits 列表，發版前可確認變更範圍
+- 支援從 commits 自動產生 release notes
+
+### web-clip v1.0.0
+- 初始版本：擷取網頁文章為 Markdown + 圖片，供 blog 引用
+- 支援翻譯功能
+
 ## 2026-03-17
 
 ### yt-transcript v1.3.0

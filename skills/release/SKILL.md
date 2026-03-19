@@ -1,6 +1,6 @@
 ---
 name: release
-version: 1.0.0
+version: 1.1.0
 description: >
   Release a skill version: bump version, update CHANGELOG, commit, and tag.
   Use when user invokes /release with a skill name.
