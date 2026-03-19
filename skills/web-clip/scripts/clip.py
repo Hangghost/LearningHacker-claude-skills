@@ -26,6 +26,7 @@ OPENAI_COMPAT = {
     "grok": ("https://api.x.ai/v1", "XAI_API_KEY"),
 }
 BATCH_SIZE = 10
+DEFAULT_OUTPUT_DIR = Path.home() / "Documents" / "Procjects" / "00_work_space" / "brain" / "clips"
 
 TRANSLATE_PROMPT = """\
 You are a professional translator. Translate the following Markdown content from English to Traditional Chinese (繁體中文).
@@ -427,8 +428,9 @@ def save_clip(
     article: dict,
     path_to_local: dict[str, str],
     translated_content: str | None = None,
+    output_dir: Path | None = None,
 ) -> Path:
-    """Save clipped article to ~/clips/YYYY-MM/{domain}_{slug}/."""
+    """Save clipped article to {output_dir}/YYYY-MM/{domain}_{slug}/."""
     today = datetime.now(timezone.utc)
     folder_month = today.strftime("%Y-%m")
 
@@ -436,7 +438,8 @@ def save_clip(
     slug = sanitize_slug(article["title"]) if article["title"] else "untitled"
     dir_name = f"{sanitize_slug(domain)}_{slug}"
 
-    out_dir = Path.home() / "clips" / folder_month / dir_name
+    base = output_dir or DEFAULT_OUTPUT_DIR
+    out_dir = base / folder_month / dir_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     frontmatter = build_frontmatter(
@@ -546,11 +549,17 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Model name for translation (default depends on --api)",
     )
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help=f"Output base directory (default: {DEFAULT_OUTPUT_DIR})",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    output_dir = Path(args.output_dir) if args.output_dir else DEFAULT_OUTPUT_DIR
 
     try:
         if is_x_url(args.url):
@@ -568,7 +577,7 @@ def main():
             domain = urlparse(args.url).netloc.replace("www.", "")
             slug = sanitize_slug(article["title"]) if article["title"] else "untitled"
             dir_name = f"{sanitize_slug(domain)}_{slug}"
-            out_dir = Path.home() / "clips" / folder_month / dir_name
+            out_dir = output_dir / folder_month / dir_name
             images_dir = out_dir / "images"
 
             path_to_local = {}
@@ -608,7 +617,7 @@ def main():
             domain = urlparse(args.url).netloc.replace("www.", "")
             slug = sanitize_slug(article["title"]) if article["title"] else "untitled"
             dir_name = f"{sanitize_slug(domain)}_{slug}"
-            out_dir = Path.home() / "clips" / folder_month / dir_name
+            out_dir = output_dir / folder_month / dir_name
             images_dir = out_dir / "images"
 
             path_to_local = {}
@@ -631,6 +640,7 @@ def main():
             article,
             path_to_local,
             translated_content,
+            output_dir=output_dir,
         )
         print(str(out_dir))
 

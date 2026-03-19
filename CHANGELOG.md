@@ -5,6 +5,12 @@ Format: each entry is grouped by date, then by skill name and version.
 
 ## 2026-03-19
 
+### web-clip v1.1.0
+- 新增 `--output-dir` CLI 參數，支援自訂輸出路徑
+- 新增 AskUserQuestion 設置選項，使用者可選擇預設或自訂輸出路徑
+- 預設輸出路徑改為 `~/Documents/Procjects/00_work_space/brain/clips`
+- 結果中強制顯示完整輸出路徑
+
 ### distill v1.1.0
 - 新增 AskUserQuestion 設置選項，使用者可選擇預設或自訂輸出路徑
 - 預設輸出路徑改為 `~/Documents/Procjects/00_work_space/brain/distills`
