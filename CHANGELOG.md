@@ -3,6 +3,16 @@
 All notable changes to skills in this repository will be documented in this file.
 Format: each entry is grouped by date, then by skill name and version.
 
+## 2026-03-24
+
+### png-to-vector v1.0.0
+- 初始版本：PNG 轉向量工具，支援輸出 SVG 和 AI 格式
+- 使用 vtracer 進行彩色圖像向量化，cairosvg 產生 AI 格式
+- 支援 `--upscale 2x/3x/4x`（Nearest Neighbor）提升邊緣精細度
+- 支援 `--smooth` + `--smoothness` Bezier 曲線路徑平滑後處理
+- 支援 `--detail low/medium/high` 細節等級預設
+- 支援 `--colormode binary` 黑白模式
+
 ## 2026-03-19
 
 ### git-merge-cleanup v1.0.0
